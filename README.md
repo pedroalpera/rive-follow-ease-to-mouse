@@ -1,5 +1,6 @@
 # rive-follow-ease-to-mouse
 These examples show how to add some ease to the follow mouse in Rive using the JS Runtime.
+Thanks to @3dfactor for improving the code so much! :)
 
 
 
