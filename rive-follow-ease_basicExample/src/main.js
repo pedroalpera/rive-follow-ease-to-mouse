@@ -1,9 +1,14 @@
 // This is the High level JS runtime for Rive
 // https://rive.app/community/doc/web-js/docvlgbnS1mp
 
+const canvas = document.getElementById("canvas");
+if (!canvas) {
+  throw new Error("No canvas element found");
+}
+
 const riveInstance = new rive.Rive({
   src: "ease_to_mouse.riv",
-  canvas: document.getElementById("canvas"),
+  canvas: canvas,
   autoplay: true,
   artboard: "Artboard",
   stateMachines: "State Machine 1",
@@ -11,114 +16,125 @@ const riveInstance = new rive.Rive({
   onLoad: () => {
     riveInstance.resizeDrawingSurfaceToCanvas();
 
+    // a rect object to store the canvas position
+    const rect = { x: 0, y: 0, width: 0, height: 0 };
+    // a boolean to check if the canvas is visible
+    let isVisible = true;
+
     let canvasWidth = 500;
     let canvasHeight = 500;
+    let lastScrollPosition = window.scrollY;
     let easing = 0.05;
 
-    draggedObject001 = riveInstance.artboard.node("DraggedObject001");
-    draggedObject002 = riveInstance.artboard.node("DraggedObject002");
-    draggedObject003 = riveInstance.artboard.node("DraggedObject003");
-    draggedObject004 = riveInstance.artboard.node("DraggedObject004");
-    draggedObject005 = riveInstance.artboard.node("DraggedObject005");
-    draggedObject006 = riveInstance.artboard.node("DraggedObject006");
+    const draggedObjects = [
+      riveInstance.artboard.node("DraggedObject001"),
+      riveInstance.artboard.node("DraggedObject002"),
+      riveInstance.artboard.node("DraggedObject003"),
+      riveInstance.artboard.node("DraggedObject004"),
+      riveInstance.artboard.node("DraggedObject005"),
+      riveInstance.artboard.node("DraggedObject006"),
+    ];
 
     // Mouse Position
     const mouse = {
-      x: null,
-      y: null,
+      x: 250,
+      y: 250,
     };
 
-    mouse.x = 250;
-    mouse.y = 250;
-
-    // Canvas position in the document
-    let rect = canvas.getBoundingClientRect();
-
-    // On Mouse Move
-    document.addEventListener("mousemove", function (event) {
-      detectPosition(event);
-    });
-
-    //////////////
-    ////////////// LOOP
-
+    ////////////// - LOOP - //////////////
     let lastTime = 0;
 
-    // We create a loop
-
     function gameLoop(time) {
+      window.requestAnimationFrame(gameLoop);
+
+      // Skip frame if the canvas is not visible
+      if (!isVisible) return;
+
       if (!lastTime) {
         lastTime = time;
       }
       const elapsedTimeMs = time - lastTime;
-      const elapsedTimeSec = elapsedTimeMs / 1000;
+      // Limit the elapsed time to 1 second to avoid overshooting
+      const elapsedTimeSec = Math.min(elapsedTimeMs / 1000, 1);
       lastTime = time;
 
-      easing =  3.5;
+      // Calculate the position inside of the game loop to have live updates
+      // when the document is scrolled or resized without moving the mouse.
+      const pos = {
+        x: (Math.floor(mouse.x - rect.x) * canvasWidth) / rect.width,
+        y: (Math.floor(mouse.y - rect.y) * canvasHeight) / rect.height,
+      };
 
-      rect = canvas.getBoundingClientRect();
+      // initial easing value
+      easing = 3.5;
 
-      let vx = ((mouse.x - draggedObject001.x) * easing) * elapsedTimeSec;
-      let vy = ((mouse.y - draggedObject001.y) * easing) * elapsedTimeSec;
-
-      draggedObject001.x += vx;
-      draggedObject001.y += vy;
-
-      easing = 4
-      
-       vx = ((mouse.x - draggedObject002.x) * easing) * elapsedTimeSec;
-       vy = ((mouse.y - draggedObject002.y) * easing) * elapsedTimeSec;
-
-      draggedObject002.x += vx;
-      draggedObject002.y += vy;
-
-      easing = 4.5
-      
-      vx = ((mouse.x - draggedObject003.x) * easing) * elapsedTimeSec;
-      vy = ((mouse.y - draggedObject003.y) * easing) * elapsedTimeSec;
-
-     draggedObject003.x += vx;
-     draggedObject003.y += vy;
-
-     
-     easing = 5
-
-     vx = ((mouse.x - draggedObject004.x) * easing) * elapsedTimeSec;
-     vy = ((mouse.y - draggedObject004.y) * easing) * elapsedTimeSec;
-
-    draggedObject004.x += vx;
-    draggedObject004.y += vy;
-
-    easing = 5.5
-
-    vx = ((mouse.x - draggedObject005.x) * easing) * elapsedTimeSec;
-    vy = ((mouse.y - draggedObject005.y) * easing) * elapsedTimeSec;
-
-   draggedObject005.x += vx;
-   draggedObject005.y += vy;
-
-   easing = 6
-
-   vx = ((mouse.x - draggedObject006.x) * easing) * elapsedTimeSec;
-   vy = ((mouse.y - draggedObject006.y) * easing) * elapsedTimeSec;
-
-  draggedObject006.x += vx;
-  draggedObject006.y += vy;
-
-      window.requestAnimationFrame(gameLoop);
+      // Loop through all dragged objects and apply easing
+      draggedObjects.forEach((dragObject) => {
+        let vx = (pos.x - dragObject.x) * easing * elapsedTimeSec;
+        let vy = (pos.y - dragObject.y) * easing * elapsedTimeSec;
+        dragObject.x += vx;
+        dragObject.y += vy;
+        easing += 0.5;
+      });
     }
-    // Start the first frame request
+    ////////////// - END LOOP - //////////////
+
+    function pointerMoveCallback(event) {
+      // Set mouse position
+      mouse.x = event.clientX;
+      mouse.y = event.clientY;
+    }
+
+    // Update the canvas rect value when the canvas is visible
+    const updateRect = () => {
+      if (!isVisible) return;
+      const canvasRect = canvas.getBoundingClientRect();
+      rect.x = canvasRect.x;
+      rect.y = canvasRect.y;
+      rect.width = canvasRect.width;
+      rect.height = canvasRect.height;
+    };
+
+    // Observe the canvas position in the document
+    // and detect when it is visible or not
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          isVisible = entry.isIntersecting;
+          if (!isVisible) return;
+          rect.x = entry.boundingClientRect.x;
+          rect.y = entry.boundingClientRect.y;
+          rect.width = entry.boundingClientRect.width;
+          rect.height = entry.boundingClientRect.height;
+        });
+      },
+      { threshold: 0 },
+    );
+
+    observer.observe(canvas);
+
+    // onpointermove is a universal event for all types of pointing devices
+    document.addEventListener("pointermove", pointerMoveCallback);
+    document.addEventListener("pointerdown", pointerMoveCallback);
+
+    // Add listeners to the window to update the canvas rect
+    window.addEventListener("resize", updateRect);
+    window.addEventListener("orientationchange", updateRect);
+    window.addEventListener("scroll", () => {
+      updateRect();
+
+      // On touch devices update mouse.y based on the scroll position
+      if (!("ontouchstart" in window)) return;
+
+      const scrollDeltaPosition = window.scrollY - lastScrollPosition;
+      lastScrollPosition = window.scrollY;
+
+      mouse.y -= scrollDeltaPosition;
+    });
+
+    // Initial update
+    updateRect();
+    // Start the game loop
     window.requestAnimationFrame(gameLoop);
-
-    ////////////// END LOOP
-    //////////////
-
-    function detectPosition(event) {
-      rect = canvas.getBoundingClientRect();
-
-      // Calculate the position
-      mouse.x = (Math.floor(event.x - rect.x) * canvasWidth) / rect.width;
-      mouse.y = (Math.floor(event.y - rect.y) * canvasHeight) / rect.height;
-    }
   },
 });
